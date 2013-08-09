@@ -2,6 +2,8 @@
 
 namespace Flurry;
 
+use Flurry\DB;
+
 class Model {
 
     // database handle
@@ -11,16 +13,10 @@ class Model {
 
     protected $table;
     protected $columns;
-    protected $dbManager;
     public $columnNames;
 
-    public function __construct($dbManager)
+    public function __construct()
     {
-        $full_name = get_class($this);
-        $this->name = preg_replace('/Model$/', '', $full_name);
-        $this->lc_name = strtolower($this->name);
-
-        $this->dbManager = $dbManager;
     }
 
     public function useDb($db) {
@@ -29,7 +25,7 @@ class Model {
 
     public function init() {
         if(!empty($this->db_name)) {
-            $this->db = $this->dbManager->get($this->db_name);
+            $this->db = DB::get($this->db_name);
         }
     }
 
@@ -61,7 +57,7 @@ class Model {
             ";
             $this->columns = [];
             $query = $this->prepare($sql);
-            $query->execute(strtoupper($this->table));
+            $query->execute([strtoupper($this->table)]);
             while($row = $query->fetch()) {
                 $this->columns[] = $row['column_name'];
             }
@@ -118,7 +114,9 @@ class Model {
 
         $sql = "select count(*) cnt from $this->table" . $whereClause['where'];
 
-        $result = $this->db()->getrow($sql, $whereClause['vals']);
+        $query = $this->db()->prepare($sql);
+        $query->execute($whereClause['vals']);
+        $result = $query->fetch();
 
         return $result['cnt'];
     }

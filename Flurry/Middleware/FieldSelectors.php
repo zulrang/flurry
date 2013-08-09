@@ -22,5 +22,6 @@ class FieldSelectors extends \Slim\Middleware {
 			$this->app->request->fieldSelectors = $fieldSelectors;
 			$this->app->environment()['PATH_INFO'] = $newURI;
 		}
+		$this->next->call();
 	}
 }

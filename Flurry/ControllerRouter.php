@@ -72,17 +72,12 @@ class ControllerRouter extends \Slim\Slim {
             list($path, $method) = explode("@", $path);
         }
 
-        var_dump($route);
-        var_dump($path);
-        var_dump($method);
-         
         $func = $this->processCallback($path);
  
         $r = new \Slim\Route($route, $func);
         $r->setHttpMethods(strtoupper($method));
  
-        var_dump($r);
-        $this->router->addRoute($r);
+        $this->router->map($r);
     }
 
     protected function processCallback($path)
