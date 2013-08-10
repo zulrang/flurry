@@ -15,7 +15,7 @@ class DB {
 		if(!array_key_exists($name, self::$handles)) {
 			
 			if(!array_key_exists($name, self::$config['connections'])) {
-				throw new Exception("Database configuration for $name does not exist.");
+				throw new \Exception("Database configuration for $name does not exist.");
 			}
 
 
