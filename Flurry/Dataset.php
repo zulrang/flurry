@@ -72,6 +72,7 @@ class Dataset implements \JsonSerializable {
             'totalRows' => $this->totalRows,
             'rowsPerPage' => $this->rowsPerPage,
             'shownFields' => $this->shownFields,
+            'shownFieldNames' => $this->shownFieldNames,
             'filter' => $this->filter,
             'fields' => $this->fields,
             'dataRows' => $this->dataRows,

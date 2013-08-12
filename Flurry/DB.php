@@ -19,7 +19,7 @@ class DB {
 			}
 
 
-			$handles[$name] = new \PDO(
+			$pdo = new \PDO(
 				self::$config['connections'][$name]['driver'].':dbname=//'.
 				self::$config['connections'][$name]['host'].':'.
 				self::$config['connections'][$name]['port'].'/'.
@@ -27,6 +27,11 @@ class DB {
 				self::$config['connections'][$name]['username'],
 				self::$config['connections'][$name]['password']
 			);
+
+			$pdo->setAttribute(\PDO::ATTR_CASE, \PDO::CASE_LOWER);
+			$pdo->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
+
+			$handles[$name] = $pdo;
 		}
 
 		return $handles[$name];

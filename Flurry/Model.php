@@ -14,6 +14,7 @@ class Model {
     protected $table;
     protected $columns;
     public $columnNames;
+    protected $default_order = 'id';
 
     public function __construct()
     {
@@ -36,12 +37,18 @@ class Model {
         return $this->db;
     }
 
-    public function scrubFields(&$data) {
-        foreach(array_keys($data) as $field) {
-            if(!array_search($field, $this->columns())) {
-                unset($data[$field]);
+    public function scrubFields($data) {
+
+        $clean = array();
+
+        // only include valid columns
+        foreach($this->columns as $field) {
+            if(isset($data[$field])) {
+                $clean[$field] = $data[$field];
             }
         }
+
+        return $clean;
     }
 
     public function prepare($sql) {
@@ -65,8 +72,8 @@ class Model {
         return $this->columns;
     }
 
-    public function createUpdateBindSQL($table_name, $fields) {
-        $sql = "update " . $table_name . " set ";
+    public function createUpdateBindSQL($fields) {
+        $sql = "update " . $this->table . " set ";
         $sets = array();
         foreach($fields as $field) {
             $sets[] = "$field = :$field";
@@ -93,24 +100,64 @@ class Model {
         $sql = "";
 
         $vals = [];
-        if(!empty($filter)) {
+
+        $search = false;
+
+        if(!empty($filter['search'])) {
+            $search = $filter['search'];
+        };
+        unset($filter['search']);
+
+        if(!empty($filter) || $search) {
             // where sql items
             $wheres = [];
             // add filter to sql
             foreach ($filter as $col => $val) {
-                $where[] = "$col = ?";
-                $vals[] = $val;
+                if($val) {
+                    $wheres[] = "$col = ?";
+                    $vals[] = $val;
+                }
             }
 
             $sql .= " where " . implode(" $joiner ", $wheres);
+
+           // create search part
+            if($search) {
+
+                $search_sets = [];
+
+                // tell oracle we want a case insensitive search
+                $this->db()->exec('ALTER SESSION SET NLS_COMP=LINGUISTIC');
+                $this->db()->exec('ALTER SESSION SET NLS_SORT=BINARY_CI');
+
+
+                // add and to where
+                if(!empty($wheres)) {
+                    $sql .= ' AND (';
+                } else {
+                    $sql = ' where (';
+                }
+
+                // iterate searchable fields
+                foreach($this->searchable as $field) {
+                    // add search value for this field
+                    $vals[] = '%'.$search.'%';
+                    // add to sq;
+                    $search_sets[] = "$field like ?";
+                }
+
+                $sql .= implode(' OR ', $search_sets);
+
+                // close set
+                $sql .= ')';
+            }
         }
 
-        return [ 'where' => $sql, 'vals' => $vals ];
+        $result = [ 'where' => $sql, 'vals' => $vals ];
+        return $result;
     }
 
-    public function getTotalRowsByFilter($filter) {
-
-        $whereClause = $this->createWhereClause($filter);
+    public function getTotalRowsByWhere($whereClause) {
 
         $sql = "select count(*) cnt from $this->table" . $whereClause['where'];
 
@@ -138,23 +185,54 @@ class Model {
         return $returnArray;
     }
 
+    public function sanitizeDataset($dataset) {
+
+        // sanitize
+        $search = null;
+        if(isset($dataset->filter['search'])) {
+            // save search filter
+            $search = $dataset->filter['search'];
+        }
+        $dataset->filter = $this->scrubFields($dataset->filter);
+        if($search) {
+            // restore search filter
+            $dataset->filter['search'] = $search;
+        }
+
+        // only query valid fields
+        $dataset->shownFields = 
+            array_intersect($dataset->shownFields, $this->columns());
+
+        // only order by valid columns
+        // IMPORTANT! THIS CHECK PREVENTS SQL-INJECTION!
+        $sorts = explode(',',$dataset->sort);
+        $dataset->sort = implode(',', array_intersect($sorts, $this->columns()));
+        if(empty($dataset->sort)) { $dataset->sort = $this->default_order; }
+
+        // since array_intersect preserves keys
+        $dataset->shownFields = array_values($dataset->shownFields);
+
+        return $dataset;
+
+    }
+
     public function populateDataset($dataset) {
 
         // populate dataset fields
         $dataset->fields = $this->columns();
 
         // sanitize
-        $this->scrubFields($dataset->filter);
-        $dataset->shownFields = 
-            array_intersect($dataset->shownFields, $this->columns());
+        $dataset = $this->sanitizeDataset($dataset);
         
+        // create where clause for dataset
+        $innerWhere = $this->createWhereClause($dataset->filter);
+
         // get total rows    
-        $totalRows = $this->getTotalRowsByFilter($dataset->filter);
+        $totalRows = $this->getTotalRowsByWhere($innerWhere);
         $dataset->setTotalRows($totalRows);
 
         // create inner sql
         $innerSelect = $this->createSelect($dataset->shownFields);
-        $innerWhere = $this->createWhereClause($dataset->filter);
         $innerSql = $innerSelect . $innerWhere['where'];
 
         // create full sql with limits
@@ -165,7 +243,7 @@ class Model {
             select * from 
              ( select a.*, ROWNUM rnum from ($innerSql) a
                 where ROWNUM <= ? )
-            where rnum >= ?
+            where rnum >= ? order by $dataset->sort
         ";
 
         // fetch results
@@ -176,18 +254,6 @@ class Model {
 
             $numRows = count($dataset->dataRows);
             $numFields = count($dataset->shownFields);
-
-            /*
-            for($i=0; $i<$numRows; $i++) {
-                foreach($dataset->shownFields as $field) { 
-                    if(isset($this->columnNames[$field])) {
-                        $fieldName = $this->columnNames[$field];
-                        $dataset->dataRows[$i][$fieldName] = 
-                            $dataset->dataRows[$i][$field];
-                        unset($dataset->dataRows[$i][$field]);
-                    }
-                }
-            }*/
 
             for($i=0; $i<$numFields; $i++) {
                 $field = $dataset->shownFields[$i];
@@ -206,6 +272,34 @@ class Model {
             unset($dataset->dataRows[$i]['rnum']);
         }
 
+    }
+
+    public function getMetatable() {
+        if(empty($this->metatable)) {
+            $this->metatable = [
+                'fields' => [],
+                'fieldInfo' => [],
+                'filterFields' => []
+            ];
+            foreach($this->columns() as $field) {
+                $this->metatable['fields'][] = $field;
+                $info = [];
+
+                if(isset($this->columnNames[$field])) {
+                    $info['name'] = $this->columnNames[$field];
+                }
+                if(isset($this->filterType[$field])) {
+                    $info['type'] = $this->filterType[$field];
+                    $this->metatable['filterFields'][] = $field;
+                }
+                $this->metatable['fieldInfo'][$field] = $info;
+            }
+        }
+        return $this->metatable;
+    }
+
+    public function getDefaultSortOrder() {
+        return $this->default_order;
     }
 
 }
