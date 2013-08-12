@@ -18,15 +18,27 @@ class DB {
 				throw new \Exception("Database configuration for $name does not exist.");
 			}
 
+			$concfg = self::$config['connections'][$name];
+			$server = false;
+			if(isset($concfg['host'])) {
+				$server = '//' . $concfg['host'];
+				if(isset($concfg['port'])) {
+					$server .= ':'.$concfg['port'];
+				}
+			}
 
-			$pdo = new \PDO(
-				self::$config['connections'][$name]['driver'].':dbname=//'.
-				self::$config['connections'][$name]['host'].':'.
-				self::$config['connections'][$name]['port'].'/'.
-				self::$config['connections'][$name]['database'],
-				self::$config['connections'][$name]['username'],
-				self::$config['connections'][$name]['password']
-			);
+			$dsn = $concfg['driver'].':dbname=';
+			$dsn .= $server ? '/'.$concfg['database'] : $concfg['database'];
+
+			$user = $concfg['username'];
+			$pass = $concfg['password'];
+
+			try {
+				$pdo = new \PDO($dsn, $user, $pass);
+			} catch (PDOException $e) {
+				echo $e->getMessage() . " : " . $dsn;
+				exit();
+			}
 
 			$pdo->setAttribute(\PDO::ATTR_CASE, \PDO::CASE_LOWER);
 			$pdo->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
