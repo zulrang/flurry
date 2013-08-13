@@ -300,6 +300,7 @@ class Model {
 
                 if(isset($this->columnNames[$field])) {
                     $info['name'] = $this->columnNames[$field];
+                    $this->metatable['columnFields'][] = $field;
                 }
                 if(isset($this->filterType[$field])) {
                     $info['type'] = $this->filterType[$field];
