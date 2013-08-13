@@ -119,7 +119,9 @@ class Model {
                 }
             }
 
-            $sql .= " where " . implode(" $joiner ", $wheres);
+            if(!empty($wheres)) {
+                $sql .= " where " . implode(" $joiner ", $wheres);
+            }
 
            // create search part
             if($search) {
@@ -143,7 +145,7 @@ class Model {
                     // add search value for this field
                     $vals[] = '%'.$search.'%';
                     // add to sq;
-                    $search_sets[] = "$field like ?";
+                    $search_sets[] = "$field like ?\n";
                 }
 
                 $sql .= implode(' OR ', $search_sets);
@@ -231,20 +233,31 @@ class Model {
         $totalRows = $this->getTotalRowsByWhere($innerWhere);
         $dataset->setTotalRows($totalRows);
 
+        // always show ids, but flag the injection
+        $selectFields = $dataset->shownFields;
+        if(!in_array('id', $selectFields)) { 
+            $selectFields[] = 'id'; 
+            $dataset->showId = false;
+        } else {
+            $dataset->showId = true;
+        }
+
         // create inner sql
-        $innerSelect = $this->createSelect($dataset->shownFields);
+        $innerSelect = $this->createSelect($selectFields);
         $innerSql = $innerSelect . $innerWhere['where'];
 
         // create full sql with limits
         $vals = $innerWhere['vals'];
-        $vals[] = $dataset->getMaxLimit();
-        $vals[] = $dataset->getMinLimit();        
+        $vals[] = $dataset->limit + $dataset->offset;
+        $vals[] = $dataset->offset;        
         $sql = "
             select * from 
-             ( select a.*, ROWNUM rnum from ($innerSql) a
+             ( select a.*, ROWNUM rnum from ($innerSql order by $dataset->sort) a
                 where ROWNUM <= ? )
-            where rnum >= ? order by $dataset->sort
+            where rnum >= ?
         ";
+        $dataset->sql = $sql;
+        $dataset->vals = $vals;
 
         // fetch results
         $dataset->dataRows = $this->fetchDataFromSql($sql, $vals);

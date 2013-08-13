@@ -5,15 +5,18 @@ namespace Flurry;
 class Dataset implements \JsonSerializable {
 
     public $numPages;
-    public $currentPage;
+    public $offset;
     protected $totalRows;
-    public $rowsPerPage;
+    public $limit;
     public $shownFields;
     public $shownFieldNames;
     public $filter;
     public $fields;
     public $fieldNames;
     public $dataRows;
+    public $sql;
+    public $vals;
+    public $showId;
 
     public function __construct() {
         $this->rowsPerPage = 50;
@@ -23,61 +26,36 @@ class Dataset implements \JsonSerializable {
         $this->shownFields = [];
     }
 
-    public function nextPage() {
-        if ($this->currentPage < $this->numPages) {
-            return $this->currentPage + 1;
-        } else {
-            return false;
-        }
-    }
-
-    public function prevPage() {
-        if ($this->currentPage > 0) {
-            return $this->currentPage - 1;
-        } else {
-            return false;
-        }
+    public function getOffsetForPage($page) {
+        return $this->limit * ($page - 1);
     }
 
     public function setTotalRows($totalRows) {
         $this->totalRows = $totalRows;
-        $this->numPages = ceil($this->totalRows / $this->rowsPerPage);
+        $this->numPages = (int)ceil($this->totalRows / $this->limit);
     }
 
     public function getTotalRows() {
         return $this->totalRows;
     }
 
-    public function getNumShown() {
-        return $this->getMaxLimit() - $this->getMinLimit() + 1;
-    }
-
-    public function getMinLimit() {
-        return ($this->currentPage - 1) * $this->rowsPerPage + 1;
-    }
-
-    public function getMaxLimit() {
-        $max = $this->getMinLimit() + $this->rowsPerPage;
-        if($max < $this->totalRows) {
-            return $max - 1;
-        } else {
-            return $this->totalRows;
-        }
-    }
-
     public function jsonSerialize() {
         return [
-            'numPages' => $this->numPages,
-            'currentPage' => $this->currentPage,
-            'totalRows' => $this->totalRows,
-            'rowsPerPage' => $this->rowsPerPage,
+            'data' => $this->dataRows,
             'shownFields' => $this->shownFields,
-            'shownFieldNames' => $this->shownFieldNames,
             'filter' => $this->filter,
             'fields' => $this->fields,
-            'dataRows' => $this->dataRows,
-            'minLimit' => $this->getMinLimit(),
-            'maxLimit' => $this->getMaxLimit()
+            'sql' => $this->sql,
+            'vals' => $this->vals,
+            'fieldNames' => $this->fieldNames,
+            'shownFieldNames' => $this->shownFieldNames,
+            'showId' => $this->showId,
+            'pagination'=> [
+                'numPages' => (int)$this->numPages,
+                'offset' => (int)$this->offset,
+                'total' => (int)$this->totalRows,
+                'limit' => (int)$this->limit,
+            ]
         ];
     }
 
