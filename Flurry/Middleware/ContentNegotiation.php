@@ -31,7 +31,8 @@ class ContentNegotiation extends \Slim\Middleware
     protected $settings;
     protected $contentTypes = [
                 'json' => 'application/json',
-                'xml' => 'application/xml'
+                'xml' => 'application/xml',
+                'csv' => 'text/csv'
             ];
 
     /**
@@ -64,9 +65,9 @@ class ContentNegotiation extends \Slim\Middleware
         // extension content negotiation
         $pathInfo = $env['PATH_INFO'];
 
-        if(preg_match('/\.(json|xml)/', $pathInfo, $matches)) {
+        if(preg_match('/\.(json|xml|csv)/', $pathInfo, $matches)) {
             $responseType = $this->contentTypes[$matches[1]];
-            $env['PATH_INFO'] = preg_replace('/\.(json|xml)/', '', $pathInfo);
+            $env['PATH_INFO'] = preg_replace('/\.(json|xml|csv)/', '', $pathInfo);
 
             // update response header
             $res->header('Content-Type', $responseType);

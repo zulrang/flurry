@@ -4,6 +4,24 @@ namespace Flurry\HtmlHelper;
 
 class Form {
     
+    public function lookupWithBlank($name, $set, $selected='') {
+        $id = $name;
+
+        if(preg_match('/\]$/', $id)) {
+            $id = preg_replace('/\[/', '_', $id);
+            $id = preg_replace('/\]/', '', $id);
+        }
+
+        $output = "<select name='$name' id='$id'>\n";
+        $output .= "<option value=''>-</option>";
+        foreach($set as $k => $v) {
+            $sel = ($k == $selected) ? " selected='selected'" : '';
+            $output .= "<option value='$k'$sel>$v</option>\n";
+        }
+        $output .= "</select>";
+        return $output;
+    }
+
     public function lookup($name, $set, $selected='') {
         $id = $name;
 
@@ -14,7 +32,7 @@ class Form {
 
         $output = "<select name='$name' id='$id'>\n";
         foreach($set as $k => $v) {
-            $sel = ($k === $selected) ? " selected='selected'" : '';
+            $sel = ($k == $selected) ? " selected='selected'" : '';
             $output .= "<option value='$k'$sel>$v</option>\n";
         }
         $output .= "</select>";
